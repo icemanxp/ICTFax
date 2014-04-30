@@ -1,0 +1,88 @@
+
+/* ---------- General Layout ---------- */
+
+body,
+input,
+textarea,
+select {
+  color: #000;
+  background: none;
+  font-size:24px;
+  font-family: "Lucida Sans Unicode",Helvetica, Sans-Serif; 
+}
+body.two-sidebars,
+body.sidebar-first,
+body.sidebar-second,
+body {
+  width:1024px;
+}
+#sidebar-first,
+#sidebar-second,
+.navigation,
+#toolbar,
+#footer-wrapper,
+.tabs,
+.add-or-remove-shortcuts {
+  display: none;
+}
+.one-sidebar #content,
+.two-sidebars #content {
+  width: 100%;
+}
+#triptych-wrapper {
+  width: 960px;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+#triptych-first, #triptych-middle, #triptych-last {
+  width: 250px;
+}
+
+/* ---------- Node Pages ---------- */
+
+#comments .title,
+#comments form,
+.comment_forbidden {
+  display: none;
+}
+
+#header, #breadcrumb, #page-title, .submitted, #footer-wrapper, #company-submit, .link-wrapper, .print-logo, .print-site_name, .print-links, .print-source_url, .print-footer, .print-breadcrumb, .print-hr, .node-company > h2, .contextual-links-wrapper
+{
+  display: none;
+}
+
+table, tbody, tr, td
+{
+ border-color:#ffffff;
+}
+table {
+ width:100%;
+}
+
+input
+{
+ border: none;
+ padding-left: 10px;
+}
+
+a:link
+{
+ color:#000000;
+ text-decoration:none;
+}
+a:visited
+{
+ color:#000000;
+ text-decoration:none;
+}
+a:hover
+{
+ color:#333333;
+ text-decoration:underline;
+}
+a:active
+{
+ color:#333333;
+ text-decoration:underline;
+}
