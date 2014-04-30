@@ -95,6 +95,9 @@ Alter the attached files
 A user account with this email address must be configured.
 See post http://forum.ictfax.org/viewtopic.php?f=6&t=2492
 
+Set your EXTRA_FS_VARS in the plivo default.conf file to below
+EXTRA_FS_VARS = variable_user_context,Channel-Read-Codec-Bit-Rate,variable_fax_result_code,fax_result_code,variable_fax_success,variable_fax_result_text
+
 If you already have ICTFax setup you will have to remove all the ICTFax modules from Drupal and Reinstall them.
 This step will wipe out the following tables, please have a handy backup to restore the tables from:
 fax_inbox
