@@ -108,7 +108,7 @@ class FeedsFaxProcessor extends FeedsProcessor {
     }
     else
     {  
-       $result = db_query($query, array(':mail'=>'anon@nunalogistics.com'));
+       $result = db_query($query, array(':mail'=>'anon@yourorg.com'));
        $ictpbx_user = $result->fetchAssoc();
     }
       

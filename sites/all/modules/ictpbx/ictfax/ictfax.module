@@ -821,7 +821,11 @@ function ictfax_form_submit($form, &$form_state) {
   $fax['try_max'] = $edit['try_max'];
   $fax['try_recent'] = 0;
   $fax['submitted_from'] = 'web';  
-  
+
+  $account = user_load($uid);
+  $account_mail_tmp = ictfax_get_custom_user_fields($account,'field_mail');
+  $fax['from_email'] = $account_mail_tmp['#markup'];
+
   if(!isset($fax['send_from'])) {
     $fax['send_from'] = variable_get('default_caller_id', '33184164306');
   }
@@ -1081,6 +1085,15 @@ function ictfax_sendfax($uid, $fax) {
   $description = $fax['text'];
   $retries = $fax['try_max'];
   
+  $account = user_load($uid);
+  $common_name_tmp = ictfax_get_custom_user_fields($account,'field_cn');
+  $common_name = $common_name_tmp['#markup'];
+
+  $company_tmp = ictfax_get_custom_user_fields($account,'field_company');
+  $company = $company_tmp['#markup'];
+
+  $fax_header = $company . " - " . $common_name;
+
   //Create dial string
   $trunk = get_trunk_active();
   // select first active trunk
@@ -1104,9 +1117,11 @@ function ictfax_sendfax($uid, $fax) {
   $plivo_AuthToken  = variable_get('ictfax_plivo_authenticationtoken', 'YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY');
   $REST_API_URL = "http://$plivo_server:$plivo_port";
   $ApiVersion = 'v0.1';
-  $extra_dial_string = "bridge_early_media=true,hangup_after_bridge=false";
+  $extra_dial_string = "bridge_early_media=true,hangup_after_bridge=false,fax_ident=$sendFrom,fax_header='$fax_header'";
 
-  $client = new PlivoRestClient($REST_API_URL, $plivo_AccountSid, $plivo_AuthToken, $ApiVersion);
+  echo exec("echo  >> /tmp/mytest.txt");
+  
+$client = new PlivoRestClient($REST_API_URL, $plivo_AccountSid, $plivo_AuthToken, $ApiVersion);
   $call_params = array(
       'From' => $sendFrom, # Caller Id
       'To' => $sendTo, # User Number to Call
@@ -1115,7 +1130,7 @@ function ictfax_sendfax($uid, $fax) {
       'GatewayCodecs' => "'PCMU'", # Codec string as needed by FS for each gateway separated by comma
       'GatewayTimeouts' => "60",      # Seconds to timeout in string for each gateway separated by comma
       'GatewayRetries' => "1", # Retry String for Gateways separated by comma, on how many times each gateway should be retried
-//      'ExtraDialString' => $extra_dial_string,
+      'ExtraDialString' => $extra_dial_string,
       'AnswerUrl' => "$application_root?q=ictfax/send_fax/$fax[cid]",
       'HangupUrl' => "$application_root?q=ictfax/send_fax_hangup/$fax[cid]",
       'RingUrl' => "$application_root?q=ictfax/ringing/$fax[cid]"    
@@ -1183,6 +1198,8 @@ function ictfax_send_fax($cid) {
 */
 function ictfax_send_fax_hangup($fax_id) {
   $fax = db_query("SELECT * FROM fax_outbox WHERE cid=:cid", array(':cid'=>$fax_id))->fetchAssoc();
+//  if(!db_result($fax)) return;
+
   $user = db_query("SELECT * FROM ictpbx_user WHERE uid=:uid", array(':uid'=>$fax['uid']))->fetchAssoc();
   module_invoke_all('outgoing_billing', $fax);  
   if(isset($_POST['CallStatus']) && isset($_POST['HangupCause']) && ($_POST['CallStatus']=='completed')
@@ -1198,7 +1215,7 @@ function ictfax_send_fax_hangup($fax_id) {
       $emailData['pages']        = $fax['pages'];
       $emailData['from_email']        = $user['mail'];
       echo exec("echo sending email >> /tmp/mytest.txt");
-      ictfax_sendmail_success($user['name'], $emailData);
+      ictfax_sendmail_success($user, $emailData);
     //}
   }else
   {
@@ -1208,7 +1225,7 @@ function ictfax_send_fax_hangup($fax_id) {
     $emailData['pages']        = $fax['pages'];
     $emailData['from_email']        = $user['mail'];
     
-    $error = "Call was not completed successfully: Hangup Cause: " . $_POST['HangupCause'] . ', Call Status: ' . $_POST['CallStatus'];
+    $error = "Call was not completed successfully: Hangup Cause: " . (isset($_POST['HangupCause']) ? $_POST['HangupCause']:"") . ', Call Status: ' . (isset($_POST['CallStatus'])?$_POST['CallStatus']:"");
     if(isset($_POST['variable_fax_result_code']))
     {
       $error = $error . ', Fax Result Code: ' . $_POST['variable_fax_result_code'] . ", ";
@@ -1218,7 +1235,7 @@ function ictfax_send_fax_hangup($fax_id) {
     drupal_write_record('fax_outbox', $fax, 'cid');
     watchdog("Fax Failed", "cid: $fax_id $error" , array(), WATCHDOG_WARNING);
     echo exec("echo sending error email $error >> /tmp/mytest.txt");
-    ictfax_sendmail_error($user['name'], $emailData, $error);
+    ictfax_sendmail_error($user, $emailData, $error);
   }
   
   echo exec("echo submitted_from=$fax[submitted_from] >> /tmp/mytest.txt");
@@ -1279,7 +1296,7 @@ function ictfax_receive_fax() {
     if(isset($_REQUEST['CallerName'])) $inbox['caller_id'] = $_REQUEST['CallerName'];
     if(isset($_REQUEST['CallStatus']) && ($_REQUEST['CallStatus']=="ringing")) {
       $inbox['status_string'] = 'receiving';
-    }else if(isset($_REQUEST['CallStatus']) && ($_REQUEST['CallStatus']=="complete") && ($_REQUEST['variable_fax_success']==="0")){
+    }else if(isset($_REQUEST['CallStatus']) && ($_REQUEST['CallStatus']=="completed") && ($_REQUEST['variable_fax_result_code']==="0")){
       $inbox['status_string'] = 'received';
     }else{
       if(isset($_REQUEST['variable_fax_result_text'])) {
@@ -1388,7 +1405,7 @@ function ictfax_send_email($fax_id) {
       echo exec("echo user_name=$user[name] >> $faxdebug"); 
 	  echo exec("echo mail_to=$fax[mail_to] >> $faxdebug"); 
 
-      ictfax_sendmail_received($user['name'], $fax);
+      ictfax_sendmail_received($user, $fax);
 	  }
 	} else {
       // update fax status
@@ -1490,6 +1507,17 @@ function ictfax_getfaxstatus() {
     return $output;
 }
 
+function ictfax_get_custom_user_fields($username,$field)
+ {
+   $fieldinfo = field_get_items('user', $username, $field);
+   $fieldvalue = '';
+   if ($fieldinfo) {
+     $fieldvalue = field_view_value('user',$username, $field, $fieldinfo[0]);
+   }
+   return $fieldvalue;
+ };
+
+
 //Email Part
 function ictfax_sendmail_received($user, $fax) {
     echo exec("echo Executing ictfax_sendmail_received >> /tmp/mytest.txt"); 
@@ -1498,9 +1526,13 @@ function ictfax_sendmail_received($user, $fax) {
     $fax_did       = $fax['send_to'];
     $caller_id     = $fax['send_from'];
     $caller_text     = $fax['caller_id'];
-    $from_email     = $fax['send_from'] . '@nunalogistics.fax';
+    $from_email     = $fax['send_from'] . '@yourorg.fax';
     $fax_pages     = $fax['pages'];
     $fax_date      = date('Y-m-d H:i:s', $fax['created']);
+
+    $account = user_load($user['uid']);
+    $common_name_tmp = ictfax_get_custom_user_fields($account,'field_cn');
+    $common_name = $common_name_tmp['#markup'];
     //$fax['file_path'] = '/usr/ictfax/sites/default/files/logo.gif'; // Remove: for testing only
 
     $attachment = chunk_split(base64_encode(file_get_contents($fax['file_path'])));
@@ -1656,6 +1688,11 @@ function user_mail_wrapper($to, $subject, $message, $header, $attachments = fals
 
 function ictfax_sendmail_error($user, $fax, $errors) {
   $from = variable_get('site_mail', ini_get('sendmail_from'));
+  
+  $account = user_load($user['uid']);
+  $common_name_tmp = ictfax_get_custom_user_fields($account,'field_cn');
+  $common_name = $common_name_tmp['#markup'];
+
   echo exec("echo error: $errors >> /tmp/mytest.txt");
   $error_message = $errors;
   //foreach ($errors as $error_text) {
@@ -1663,7 +1700,7 @@ function ictfax_sendmail_error($user, $fax, $errors) {
   //}
   
   // Mail Information:
-  $variables = array('@username' => $user, '@send_to' => $fax['send_to'], '@mailto' => $fax['submitted_from'], 
+  $variables = array('@username' => $common_name, '@send_to' => $fax['send_to'], '@mailto' => $fax['submitted_from'], 
     '@error_message' => $error_message, '@date' => format_date(time()), 
     '@site' => variable_get('site_name', 'email2fax'));
 
@@ -1688,8 +1725,12 @@ function ictfax_sendmail_success($user, $fax) {
 
     $from = variable_get('site_mail', ini_get('sendmail_from'));
 
+    $account = user_load($user['uid']);
+    $common_name_tmp = ictfax_get_custom_user_fields($account,'field_cn');
+    $common_name = $common_name_tmp['#markup'];
+
     // Mail Information:
-    $variables = array('@username' => $user, '@send_to' => $fax['send_to'], '@mailto' => $fax['submitted_from'], '@pages' => $fax['pages'], '@date' => format_date(time()), '@site' => variable_get('site_name', 'email2fax'));
+    $variables = array('@username' => $common_name, '@send_to' => $fax['send_to'], '@mailto' => $fax['submitted_from'], '@pages' => $fax['pages'], '@date' => format_date(time()), '@site' => variable_get('site_name', 'email2fax'));
 
     //$subject = _ictfax_mail_text('success_subject', $variables);
     //$body = _ictfax_mail_text('success_body', $variables);

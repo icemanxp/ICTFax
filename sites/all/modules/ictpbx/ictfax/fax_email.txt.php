@@ -1,4 +1,4 @@
-Dear, 
+Dear, <?php print $common_name; ?>
 
 A fax has been received on <?php print $fax_date; ?>. 
 
