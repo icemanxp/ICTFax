@@ -120,6 +120,11 @@ Default State, field_default_state, Text, Text field
 Default Country, field_default_country, Text, Text field
 Default Postal Code, field_default_postal_code, Text, Text field
 
+Switch your default theme to use theme4ictfax, the Company Nodes will now have a node theme.
+You can alter the layout of the node by altering the node file:
+./sites/all/themes/theme4ictfax/node--company.tpl.php
+You should also enable Printer-friendly pages UI and add the pdf/html links to the bottom of the node.
+
 You can use the Views module to create a Jump Menu for each company and add it to the right sidebar.
 
 Add a Image Style called Logo and set it for 500x160, set the Company Logo to use that Image style
