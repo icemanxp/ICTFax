@@ -1272,7 +1272,7 @@ function ictfax_receive_fax() {
     echo exec("echo ictpbx_user post >> $faxdebug");
     
     //$forward_to = $ictpbx_user['mail'];
-    $forward_to = $ictpbx_user['mail'];
+    //$forward_to = $ictpbx_user['mail'];
     // Now check available credit for this user
     //if(module_exists('ictpbx_billing')) {
     	//if(($ictpbx_user['free_bundle'] - $ictpbx_user['reserve_free_bundle']) > 0) {
@@ -1317,8 +1317,14 @@ function ictfax_receive_fax() {
       $inbox['pages'] = $prevfax['pages'];
       $inbox['caller_id'] = $prevfax['caller_id'];
       drupal_write_record('fax_inbox', $inbox, 'fax_inbox_id');
+      if(isset($_REQUEST['CallStatus']) && ($_REQUEST['CallStatus']=="completed") && ($_REQUEST['variable_fax_result_code']==="0")){
+        ictfax_send_email_modified($inbox['fax_inbox_id']);
+      }
     }else{
-      drupal_write_record('fax_inbox', $inbox);
+        drupal_write_record('fax_inbox', $inbox);
+      if(isset($_REQUEST['CallStatus']) && ($_REQUEST['CallStatus']=="completed") && ($_REQUEST['variable_fax_result_code']==="0")){
+        ictfax_send_email_modified($inbox['fax_inbox_id']);
+      }
     }
 
     echo exec("echo 'post write inbox' >> $faxdebug");
@@ -1344,10 +1350,86 @@ function ictfax_receive_fax() {
     echo $response;
   }
 }
+
+function ictfax_send_email_modified($fax_id)
+{
+   $faxdebug = '/tmp/inboundfax.txt';
+    if (empty($fax_id) || $fax_id == 'post') {
+      $sql = "SELECT * FROM {fax_inbox} WHERE call_uuid = :call_uuid";
+      $fax = db_query($sql, array(':call_uuid' => $_REQUEST['CallUUID']))->fetchAssoc();
+      if (empty($fax['fax_inbox_id'])) {
+        return false; // not a incoming fax request, don't proceed
+      }
+      $fax_id = $fax['fax_inbox_id'];
+    }
+
+    echo exec("echo ictfax_send_email called >> $faxdebug");
+    $path = variable_get('fax_directory_inbox', '/usr/ictfax/sites/default/files/ictfax/inbox');
+    $tifFile = "$path/$fax_id.tif";
+    // convert tiff to pdf
+    $pdfFilePath = str_replace('.tif', '.pdf', $tifFile);
+    $cmd = ictfax_which('tiff2pdf', '/usr/bin') . " -o $pdfFilePath -z $tifFile";
+    exec($cmd);
+    //$cmd = "rm -rf $tifFile";
+    //exec($cmd);
+    // get total page count of pdf
+    $cmd = ictfax_which('pdfinfo', '/usr/bin') . " '$pdfFilePath' | sed -n 's#^Pages:[^0-9]*\\([0-9.]*\)$#\\1#p'";
+    exec($cmd, $pages);
+    echo exec("echo 'Pages=".print_r($pages, true)."' >> $faxdebug");
+
+    // load inbox fax
+    $sql    = "SELECT * FROM {fax_inbox} WHERE fax_inbox_id = :fax_inbox_id";
+    $fax = db_query($sql, array(':fax_inbox_id' => $fax_id))->fetchAssoc();
+        if (isset($pages[0]) && $pages[0] >= 1) {
+      // update fax status
+      $fax['status_string'] = 'received';
+      $fax['pages'] = $pages[0];
+      drupal_write_record('fax_inbox', $fax, 'fax_inbox_id');
+
+      // get user name
+      echo exec("echo fax1=" .escapeshellarg(print_r($fax, true)) . " >> $faxdebug");
+      echo exec("echo fax2 >> /tmp/mytest.txt");
+      echo exec("echo fax3 uid=" . $fax['uid'] . " >> $faxdebug");
+
+      $sql    = "SELECT * FROM {ictpbx_user} WHERE uid = :uid";
+      $user = db_query($sql, array(':uid' => $fax['uid']))->fetchAssoc();
+
+      echo exec("echo user1=" . escapeshellarg(print_r($user, true)) . " >> $faxdebug");
+      if($user != null){
+          echo exec("echo user mail=".escapeshellarg($user['mail'])." >> $faxdebug");
+
+            // get email to forward
+            $sql    = "SELECT forwarded_to FROM {ictpbx_did} WHERE did = :did";
+            $did = db_query($sql, array(':did' => $fax['send_to']))->fetchAssoc();
+
+            // Send email now
+            $fax['file_path'] = "$path/$fax[fax_inbox_id].pdf";
+            $fax['mail_to'] = $did['forwarded_to'];
+
+            echo exec("echo fax_id=$fax_id >> $faxdebug");
+          echo exec("echo did=$fax[send_to] >> $faxdebug");
+      echo exec("echo user_name=$user[name] >> $faxdebug");
+          echo exec("echo mail_to=$fax[mail_to] >> $faxdebug");
+
+      ictfax_sendmail_received($user, $fax);
+          }
+        } else {
+      // update fax status
+      //$fax['status_string'] = 'error: no pages';
+      $fax['status_string'] = '<span class="dropt">error<span>no pages</span></span>';
+      $fax['pages'] = '0';
+      drupal_write_record('fax_inbox', $fax, 'fax_inbox_id');
+
+      // Make a note of the fax failing in the mytest.txt file for debug purposes
+      exec("echo ictfax_send_email called - Fax Failed - NO FAX Received >> $faxdebug");
+    }
+}
+
 // After receiving a fax, send an email to user
 function ictfax_send_email($fax_id) {
   $faxdebug = '/tmp/inboundfax.txt';
-    if (empty($fax_id) || $fax_id == 'post') {
+ 
+/*   if (empty($fax_id) || $fax_id == 'post') {
       $sql = "SELECT * FROM {fax_inbox} WHERE call_uuid = :call_uuid";
       $fax = db_query($sql, array(':call_uuid' => $_REQUEST['CallUUID']))->fetchAssoc();
       if (empty($fax['fax_inbox_id'])) {
@@ -1373,7 +1455,8 @@ function ictfax_send_email($fax_id) {
     // load inbox fax
     $sql    = "SELECT * FROM {fax_inbox} WHERE fax_inbox_id = :fax_inbox_id";
     $fax = db_query($sql, array(':fax_inbox_id' => $fax_id))->fetchAssoc();
-	if (isset($pages[0]) && $pages[0] >= 1) {
+    
+    if (isset($pages[0]) && $pages[0] >= 1) {
       // update fax status
       $fax['status_string'] = 'received';
       $fax['pages'] = $pages[0];
@@ -1418,6 +1501,7 @@ function ictfax_send_email($fax_id) {
       exec("echo ictfax_send_email called - Fax Failed - NO FAX Received >> $faxdebug");
     }
 
+    */
     // responed to plivo server
     $response = '<?xml version="1.0" encoding="UTF-8"?>
     <Response>
@@ -1736,7 +1820,7 @@ function ictfax_sendmail_success($user, $fax) {
     //$body = _ictfax_mail_text('success_body', $variables);
 
     $subject = t('Your fax delivered to @send_to successfully', $variables);
-    $body = t("Hi @username,\n\nWe just successfully delivered an fax to @send_to.\nat: @date \nTotal Pages: @pages \n\n--  @site team", $variables);
+    $body = t("Hi @username,\n\nWe successfully delivered a fax to @send_to.\nat: @date \nTotal Pages: @pages \n\n--  @site team", $variables);
 
     $headers = "From: $from\nReply-to: $from\nX-Mailer: Drupal\nReturn-path: $from\nErrors-to: $from";
 
@@ -1769,7 +1853,7 @@ function _ictfax_mail_text($messageid, $variables = array()) {
       case 'success_subject':
         return t('Your fax delivered to %send_to successfully', $variables);
       case 'success_body':
-      return t("Hi %username,\n\nWe just successfully delivered an fax to %send_to.\nat: %date \nTotal Pages: %pages \n\n--  %site team", $variables);
+      return t("Hi %username,\n\nWe successfully delivered a fax to %send_to.\nat: %date \nTotal Pages: %pages \n\n--  %site team", $variables);
       case 'failure_subject':
         return t('FAX to %send_to failed', $variables);
       case 'failure_body':

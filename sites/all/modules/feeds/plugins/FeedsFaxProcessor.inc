@@ -292,7 +292,7 @@ class FeedsFaxProcessor extends FeedsProcessor {
       // get user name
       $sql    = "SELECT name FROM {ictpbx_user} WHERE uid = :uid";
       $user = db_query($sql, array(':uid' => $fax['uid']))->fetchAssoc();
-      ictfax_sendmail_error($user['name'], $emailData, $errors);
+      ictfax_sendmail_error($user, $emailData, $errors);
 
     }  
   }
