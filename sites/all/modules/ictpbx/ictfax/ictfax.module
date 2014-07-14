@@ -488,12 +488,13 @@ function theme4ictfax_get_companies()
 * Returns a path to a local file with a saved copy of the PDF
 * Returns a empty path on error or $companytemplate = 'None'
 */
-function theme4ictfax_get_company_template($companytemplate,$tofax,$toperson,$subject)
+function theme4ictfax_get_company_template($companytemplate,$tofax,$toperson,$subject,$comment)
 {
   echo exec("echo Coverpage: template: $companytemplate >> /tmp/mytest.txt");
   echo exec("echo Coverpage: tofax: $tofax >> /tmp/mytest.txt");
   echo exec("echo Coverpage: toperson: $toperson >> /tmp/mytest.txt");
   echo exec("echo Coverpage: subject: $subject >> /tmp/mytest.txt");
+  echo exec("echo Coverpage: comment: $comment >> /tmp/mytest.txt");
   if($companytemplate == 'None') return '';
 
   $query = new EntityFieldQuery;
@@ -523,7 +524,7 @@ function theme4ictfax_get_company_template($companytemplate,$tofax,$toperson,$su
 //    echo exec("echo Coverpage: node_result: " . escapeshellarg(print_r($node_result,true)) . " >> /tmp/mytest.txt");
     
     $url = '/ictfax/?q=node/' . $node_result->nid . '&toperson=' . $toperson . 
-      '&tofax=' . $tofax . '&subject=' . $subject;
+      '&tofax=' . $tofax . '&subject=' . $subject . '&comment' . $comment;
     
     $date = date('Ymd_His',time());
     $file_path  = variable_get('file_public_path', conf_path() . '/files/webform');
@@ -547,6 +548,7 @@ function theme4ictfax_get_company_template($companytemplate,$tofax,$toperson,$su
     $_GET['tofax'] = $tofax;
     $_GET['toperson'] = $toperson;
     $_GET['subject'] = $subject;
+    $_GET['comment'] = $comment;
     $html = drupal_render($outarr);
 
     $main_content_display = $tmp;
@@ -628,6 +630,7 @@ function ictfax_form($form, &$form_state, $edit = array()) {
     'send_to'    => '',
     'text_to'    => '',
     'subject'    => '',
+    'comment'    => '',
     'company'    => '',
     'send_from'  => '',
     'text'       => '',
@@ -721,6 +724,13 @@ function ictfax_form($form, &$form_state, $edit = array()) {
     '#maxlength'     => 128,
     '#description' => t('Type the subject of the fax. Only appears if you select a company template'),
     '#default_value' => $edit['subject'],
+  );
+  $form['Companies FieldSet']['comment'] = array(
+    '#type'          => 'textarea',
+    '#title'         => t('Comment'),
+    '#required'      => false,
+    '#description' => t('A comment/message that will appear on the fax. Only appears if you select a company template'),
+    '#default_value' => $edit['comment'],
   );
   // helper field for file upload
   $form['#attributes'] = array('enctype' => "multipart/form-data");
@@ -915,7 +925,7 @@ function ictfax_form_submit($form, &$form_state) {
         $cmd = "rm -rf $fileName";
       } 
       
-      $coverpage = theme4ictfax_get_company_template($edit['company'],$edit['send_to'],$edit['toperson'],$edit['subject']);
+      $coverpage = theme4ictfax_get_company_template($edit['company'],$edit['send_to'],$edit['toperson'],$edit['subject'],$edit['comment']);
       $coverpage = escapeshellarg($coverpage);
       // get total page count of pdf
       $cmd = ictfax_which('pdfinfo', '/usr/bin') . " $pdfFilePath | sed -n 's#^Pages:[^0-9]*\\([0-9.]*\)$#\\1#p'";

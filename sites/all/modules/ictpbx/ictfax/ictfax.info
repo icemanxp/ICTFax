@@ -13,3 +13,4 @@ description = "Provides Fax2Email and Email2Fax Functionality"
 package = "ICTPBX System"
 core = "7.x"
 dependencies[] = print_pdf (>7.x-1.0)
+dependencies[] = ictpbx

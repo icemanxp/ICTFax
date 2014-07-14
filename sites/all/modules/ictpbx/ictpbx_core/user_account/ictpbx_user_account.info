@@ -12,3 +12,5 @@ name = "User Account module"
 description = "Manages Users and their accounts"
 package = "ICTPBX System"
 core = "7.x"
+dependencies[] = ictpbx
+dependencies[] = ictfax

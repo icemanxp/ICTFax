@@ -12,3 +12,5 @@ name = "Contact Management"
 description = "Provides Contacts and groups management in ICTPBX system"
 package = "ICTPBX System"
 core = "7.x"
+dependencies[] = ictpbx
+dependencies[] = ictfax

@@ -12,3 +12,4 @@ name = "DID module"
 description = "Manages DIDs for All destinations"
 package = "ICTPBX System"
 core = "7.x"
+dependencies[] = ictpbx
